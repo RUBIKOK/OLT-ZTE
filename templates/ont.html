@@ -1,0 +1,480 @@
+{% extends "index.html" %}
+
+{% block status %}active{% endblock %}
+
+{% block content %}
+<!-- Page Content -->
+<div class="container py-5">
+    <!-- Mensajes flash mejorados -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+        {% for category, message in messages %}
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <i
+                    class="fas {% if category == 'error' %}fa-exclamation-triangle text-danger{% elif category == 'success' %}fa-check-circle text-success{% elif category == 'warning' %}fa-exclamation-circle text-warning{% else %}fa-info-circle text-info{% endif %} me-2"></i>
+                <strong class="me-auto">{{ category.title() }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">{{ message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Header profesional -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div
+                class="d-flex align-items-center justify-content-between p-4 bg-gradient rounded shadow-sm border-start border-primary border-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="fa-solid fa-ethernet fa-2x text-primary"></i>
+                    </div>
+                    <div>
+                        <h2 class="mb-1 fw-bold">Monitor de onus</h2>
+                        <p class="text-muted mb-0">Monitoreo de equipos onus</p>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                    <small class="text-success">
+                        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>
+                        Sistema activo
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario de consulta -->
+    <div class="form-card mb-4">
+        <h5 class="mb-3"><i class="fas fa-search"></i> Consultar ONTs</h5>
+        <form method="POST" id="consultaForm" class="row g-3">
+            <div class="col-md-4">
+                <label for="tarjeta" class="form-label">
+                    <i class="fas fa-microchip"></i> Tarjeta
+                </label>
+                <select class="form-control" id="tarjeta" name="tarjeta" required>
+                    <option value="">Seleccionar tarjeta...</option>
+                    <option value="1" {% if tarjeta=="1" %}selected{% endif %}>1</option>
+                    <option value="2" {% if tarjeta=="2" %}selected{% endif %}>2</option>
+                    <option value="3" {% if tarjeta=="3" %}selected{% endif %}>3</option>
+                    <option value="4" {% if tarjeta=="4" %}selected{% endif %}>4</option>
+                    <option value="5" {% if tarjeta=="5" %}selected{% endif %}>5</option>
+                    <option value="6" {% if tarjeta=="6" %}selected{% endif %}>6</option>
+                    <option value="7" {% if tarjeta=="7" %}selected{% endif %}>7</option>
+                    <option value="8" {% if tarjeta=="8" %}selected{% endif %}>8</option>
+                    <option value="9" {% if tarjeta=="9" %}selected{% endif %}>9</option>
+                    <option value="10" {% if tarjeta=="10" %}selected{% endif %}>10</option>
+                    <option value="11" {% if tarjeta=="11" %}selected{% endif %}>11</option>
+                    <option value="12" {% if tarjeta=="12" %}selected{% endif %}>12</option>
+                    <option value="13" {% if tarjeta=="13" %}selected{% endif %}>13</option>
+                    <option value="14" {% if tarjeta=="14" %}selected{% endif %}>14</option>
+                    <option value="15" {% if tarjeta=="15" %}selected{% endif %}>15</option>
+                    <option value="16" {% if tarjeta=="16" %}selected{% endif %}>16</option>
+                    <option value="17" {% if tarjeta=="17" %}selected{% endif %}>17</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="puerto" class="form-label">
+                    <i class="fas fa-plug"></i> Puerto
+                </label>
+                <select class="form-control" id="puerto" name="puerto" required>
+                    <option value="">Seleccionar puerto...</option>
+                    <option value="1" {% if puerto=="1" %}selected{% endif %}>1</option>
+                    <option value="2" {% if puerto=="2" %}selected{% endif %}>2</option>
+                    <option value="3" {% if puerto=="3" %}selected{% endif %}>3</option>
+                    <option value="4" {% if puerto=="4" %}selected{% endif %}>4</option>
+                    <option value="5" {% if puerto=="5" %}selected{% endif %}>5</option>
+                    <option value="6" {% if puerto=="6" %}selected{% endif %}>6</option>
+                    <option value="7" {% if puerto=="7" %}selected{% endif %}>7</option>
+                    <option value="8" {% if puerto=="8" %}selected{% endif %}>8</option>
+                    <option value="9" {% if puerto=="9" %}selected{% endif %}>9</option>
+                    <option value="10" {% if puerto=="10" %}selected{% endif %}>10</option>
+                    <option value="11" {% if puerto=="11" %}selected{% endif %}>11</option>
+                    <option value="12" {% if puerto=="12" %}selected{% endif %}>12</option>
+                    <option value="13" {% if puerto=="13" %}selected{% endif %}>13</option>
+                    <option value="14" {% if puerto=="14" %}selected{% endif %}>14</option>
+                    <option value="15" {% if puerto=="15" %}selected{% endif %}>15</option>
+                    <option value="16" {% if puerto=="16" %}selected{% endif %}>16</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                    <i class="fas fa-search"></i> Consultar ONTs
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if onts %}
+    <!-- Resumen de resultados mejorado -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stats-number text-primary">{{ summary.total_onts }}</div>
+                <div class="stats-label"><i class="fas fa-list"></i> Total ONTs</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stats-number text-success">{{ summary.online_onts }}</div>
+                <div class="stats-label"><i class="fas fa-check-circle"></i> Online</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stats-number text-danger">{{ summary.total_onts - summary.online_onts }}</div>
+                <div class="stats-label"><i class="fas fa-times-circle"></i> Offline</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card text-center">
+                <div class="stats-number text-warning">{{ summary.critical_onts }}</div>
+                <div class="stats-label"><i class="fas fa-exclamation-triangle"></i> RX Crítico</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0">
+            <i class="fas fa-table"></i>
+            Resultados - Tarjeta {{ tarjeta }} Puerto {{ puerto }}
+        </h6>
+        <div>
+            <a href="{{ url_for('ont.download_excel') }}" class="btn btn-outline-success btn-sm">
+                <i class="fas fa-file-excel"></i> Descargar Excel
+            </a>
+            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt"></i> Actualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabla de resultados mejorada -->
+    <div class="results-table">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th><i class="fas fa-hashtag"></i> ID</th>
+                        <th><i class="fas fa-tag"></i> Descripción</th>
+                        <th><i class="fas fa-signal"></i> ONT RX</th>
+                        <th><i class="fas fa-broadcast-tower"></i> OLT RX</th>
+                        <th><i class="fas fa-chart-line"></i> Diferencia</th>
+                        <!-- <th><i class="fas fa-thermometer-half"></i> Temp</th>
+                        <th><i class="fas fa-ruler"></i> Distancia</th> -->
+                        <th><i class="fas fa-circle"></i> Estado</th>
+                        <th><i class="fas fa-cogs"></i> Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ont in onts %}
+                    <tr>
+                        <td><strong>{{ ont.id }}</strong></td>
+                        <td>
+                            <div class="fw-semibold">{{ ont.descripcion or '-' }}</div>
+                        </td>
+                        <td>
+                            <span
+                                class="{% if ont.ont_rx and ont.ont_rx|float < -28 %}text-danger fw-bold{% elif ont.ont_rx and ont.ont_rx|float < -25 %}text-warning fw-bold{% else %}text-success{% endif %}">
+                                {{ ont.ont_rx if ont.ont_rx is not none else '-' }}
+                                {% if ont.ont_rx %} dBm{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span
+                                class="{% if ont.olt_rx and ont.olt_rx|float < -30 %}text-danger fw-bold{% elif ont.olt_rx and ont.olt_rx|float < -28 %}text-warning fw-bold{% else %}text-success{% endif %}">
+                                {{ ont.olt_rx if ont.olt_rx is not none else '-' }}
+                                {% if ont.olt_rx %} dBm{% endif %}
+                            </span>
+                        </td>
+                        <td class="{% if ont.has_critical_rx_diff %}rx-critical{% endif %}">
+                            <span
+                                class="badge {% if ont.rx_diff and ont.rx_diff|float < -5 %}bg-danger{% elif ont.rx_diff %}bg-success{% else %}bg-secondary{% endif %}">
+                                {{ ont.rx_diff if ont.rx_diff is not none else '-' }}
+                                {% if ont.rx_diff %} dB{% endif %}
+                            </span>
+                        </td>
+                        <!-- <td>
+                            <span
+                                class="{% if ont.temperature and ont.temperature|float > 70 %}text-danger{% elif ont.temperature and ont.temperature|float > 60 %}text-warning{% else %}text-success{% endif %}">
+                                {{ ont.temperature if ont.temperature is not none else '-' }}
+                                {% if ont.temperature %}°C{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ ont.distance if ont.distance is not none else '-' }}{% if ont.distance %} m{% endif %}
+                        </td> -->
+                        <td>
+                            {% if ont.estado == 'online' %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-circle"></i> Online
+                            </span>
+                            {% elif ont.estado == 'disabled' %}
+                            <span class="badge bg-secondary">
+                                <i class="fas fa-ban"></i> Disabled
+                            </span>
+                            {% elif ont.estado == 'dying_gasp' %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="fas fa-exclamation-triangle"></i> Dying Gasp
+                            </span>
+                            {% elif ont.estado == 'LOS' %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-times-circle"></i> LOS
+                            </span>
+                            {% else %}
+                            <span class="badge bg-danger">
+                                <i class="fas fa-circle"></i> Offline
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-info btn-sm" title="Ver detalles"
+                                    onclick="showOntDetails('{{ ont.id }}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm" title="Reiniciar ONT"
+                                    onclick="resetOnt('{{ ont.id }}')">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+        <h4 class="text-muted">No hay resultados</h4>
+        <p class="text-muted">Ingrese los parámetros y haga clic en "Consultar ONTs"</p>
+    </div>
+    {% endif %}
+</div>
+<!-- Modal para detalles de ONT -->
+<!-- Modal para detalles de ONT -->
+<div class="modal fade" id="ontDetailsModal" tabindex="-1" aria-labelledby="ontDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="ontDetailsModalLabel">
+                    <i class="fas fa-terminal"></i> Output del comando
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="ontDetailsContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-2">Cargando información de la ONT...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Form handling
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("consultaForm");
+        const loadingOverlay = document.getElementById("loadingOverlay");
+        const submitBtn = document.getElementById("submitBtn");
+
+        form.addEventListener("submit", function (e) {
+            // Validar campos
+            const tarjeta = document.getElementById("tarjeta").value.trim();
+            const puerto = document.getElementById("puerto").value.trim();
+
+            if (!tarjeta || !puerto) {
+                e.preventDefault();
+                alert("Por favor complete todos los campos");
+                return;
+            }
+
+            // Mostrar loading
+            loadingOverlay.classList.add('show');
+
+            // Deshabilitar botón para evitar doble submit
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
+        });
+
+        // Auto-dismiss toasts
+        const toastElList = [].slice.call(document.querySelectorAll('.toast'));
+        toastElList.forEach(function (toastEl) {
+            setTimeout(() => {
+                const toast = new bootstrap.Toast(toastEl);
+                toast.hide();
+            }, 5000);
+        });
+    });
+
+    // ONT Actions
+    // ONT Actions - Versión simplificada
+    function showOntDetails(ontId) {
+        const tarjeta = document.getElementById("tarjeta").value;
+        const puerto = document.getElementById("puerto").value;
+
+        if (!tarjeta || !puerto) {
+            showError('Por favor consulte primero una tarjeta y puerto válidos');
+            return;
+        }
+
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('ontDetailsModal'));
+        modal.show();
+
+        // Actualizar título
+        document.getElementById('ontDetailsModalLabel').textContent = `Status de la ONT`;
+
+        // Cargar información
+        cargarOntInfo(tarjeta, puerto, ontId);
+    }
+
+    async function cargarOntInfo(tarjeta, puerto, ontId) {
+        const contentDiv = document.getElementById('ontDetailsContent');
+
+        // Mostrar spinner de carga
+        contentDiv.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2">Ejecutando: display ont info ${puerto} ${ontId}</p>
+            <small class="text-muted">Por favor espere...</small>
+        </div>
+    `;
+
+        try {
+            const response = await fetch(`/api/ont_info/${tarjeta}/${puerto}/${ontId}`);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                mostrarOntInfo(data);
+            } else {
+                throw new Error(data.error || 'Error al ejecutar el comando');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            contentDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>Error:</strong> No se pudo ejecutar el comando.
+                <br><small>${error.message || 'Error desconocido'}</small>
+                <br><button class="btn btn-sm btn-outline-danger mt-2" onclick="cargarOntInfo('${tarjeta}', '${puerto}', '${ontId}')">
+                    <i class="fas fa-redo"></i> Reintentar
+                </button>
+            </div>
+        `;
+        }
+    }
+
+    function mostrarOntInfo(data) {
+        const contentDiv = document.getElementById('ontDetailsContent');
+
+        contentDiv.innerHTML = `        
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="fas fa-code"></i> Output del comando
+            </div>
+            <div class="card-body p-0">
+                <pre class="m-0 p-3 bg-light border-0" style="max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.9em;">${escapeHtml(data.output)}</pre>
+            </div>
+        </div>
+        
+        <div class="mt-3 text-end">
+            <button class="btn btn-outline-primary btn-sm" onclick="copiarOutput()">
+                <i class="fas fa-copy"></i> Copiar output
+            </button>
+        </div>
+    `;
+    }
+
+    // Función para escapar HTML (evitar XSS)
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Función para copiar el output al portapapeles
+    function copiarOutput() {
+        const outputElement = document.querySelector('pre');
+        if (outputElement) {
+            navigator.clipboard.writeText(outputElement.textContent)
+                .then(() => showToast('success', 'Output copiado al portapapeles'))
+                .catch(err => showToast('error', 'Error al copiar: ' + err));
+        }
+    }
+
+    function showToast(type, message, duration = 3000) {
+        // Crear toast container si no existe
+        let toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            toastContainer.style.zIndex = '11000';
+            document.body.appendChild(toastContainer);
+        }
+
+        const toastId = 'toast-' + Date.now();
+        const toastHTML = `
+        <div class="toast align-items-center text-white bg-${type}" role="alert" id="${toastId}">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+        toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement, { delay: duration });
+        toast.show();
+
+        // Limpiar después de que se oculta
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+
+    function resetOnt(ontId) {
+        if (confirm('¿Está seguro de reiniciar la ONT ' + ontId + '?')) {
+            // Aquí iría la lógica para reiniciar la ONT
+            alert('ONT ' + ontId + ' reiniciada (simulado)');
+        }
+    }
+</script>
+{% endblock %}

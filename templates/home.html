@@ -1,0 +1,621 @@
+<!-- templates/home.html - CON MODAL DE AUTORIZACIÓN -->
+{% extends "index.html" %}
+
+{% block status %}active{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+
+    <!-- Mensajes flash mejorados -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+        {% for category, message in messages %}
+        <div class="toast show" role="alert" data-bs-autohide="true" data-bs-delay="8000">
+            <div class="toast-header">
+                <i class="fas {% if category == 'error' %}fa-exclamation-triangle text-danger{% elif category == 'success' %}fa-check-circle text-success{% elif category == 'warning' %}fa-exclamation-circle text-warning{% else %}fa-info-circle text-info{% endif %} me-2"></i>
+                <strong class="me-auto">{{ category.title() }}</strong>
+                <small class="text-muted">ahora</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">{{ message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Header profesional -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between p-4 bg-gradient rounded shadow-sm border-start border-primary border-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="fas fa-network-wired fa-2x text-primary"></i>
+                    </div>
+                    <div>
+                        <h2 class="mb-1 fw-bold">Panel de Administración OLT</h2>
+                        <p class="text-muted mb-0">Sistema de monitoreo y gestión de terminales ópticas</p>
+                        <small class="text-muted">
+                            ID Sesión: <code id="sessionId">Cargando...</code> | 
+                            Estado: <span class="badge bg-success" id="connectionStatus">Activa</span>
+                        </small>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="d-flex align-items-center text-muted mb-2">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                    <div class="d-flex align-items-center mb-1">
+                        <i class="fas fa-circle me-1 text-success" style="font-size: 0.5rem;" id="systemStatusIcon"></i>
+                        <span id="systemStatusText">Sistema activo</span>
+                    </div>
+                    <small class="text-info">
+                        <i class="fas fa-plug me-1"></i>
+                        <span id="connectionsCount">0</span> conexiones activas
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de gestión de conexiones -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <!-- ONUs detectadas (autofind) -->
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4><i class="fas fa-search text-primary"></i> ONUs detectadas</h4>
+                    <div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshAutofind()" id="refreshBtn">
+                            <span class="btn-content">
+                                <i class="fas fa-sync-alt" id="refreshIcon"></i> 
+                                <span id="refreshText">Actualizar</span>
+                            </span>
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm ms-1" data-bs-toggle="tooltip" 
+                                title="Las ONUs detectadas aparecen cuando se conectan dispositivos sin autorizar al OLT">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Contador de resultados -->
+                <div id="resultsCounter" class="mb-3" style="display: none;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="badge bg-info" id="counterBadge">0 ONUs detectadas</span>
+                        <small class="text-muted">
+                            Última actualización: <span id="lastUpdateTime">Nunca</span>
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="results-table">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0" id="autofindTable">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th style="min-width: 80px;">Número</th>
+                                    <th style="min-width: 80px;">Tipo PON</th>
+                                    <th style="min-width: 80px;">Board</th>
+                                    <th style="min-width: 70px;">Port</th>
+                                    <th style="min-width: 150px;">Serial Number</th>
+                                    <th style="min-width: 120px;">Equipo</th>
+                                    <th style="min-width: 100px;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="autofindTableBody">
+                                <tr id="initialMessage">
+                                    <td colspan="7" class="text-center text-muted py-5">
+                                        <div class="d-flex flex-column align-items-center">
+                                            <i class="fas fa-info-circle fa-3x mb-3 text-primary opacity-50"></i>
+                                            <h5 class="mb-2">Buscar ONUs detectadas</h5>
+                                            <p class="mb-3">Haga clic en "Actualizar" para buscar dispositivos detectados automáticamente</p>
+                                            <small class="text-muted">
+                                                Las ONUs aparecen aquí cuando se conectan sin autorización previa
+                                            </small>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paneles de control y estadísticas -->
+    <div class="row mb-5">
+        <div class="col-md-8">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow mb-4">
+                <h5><i class="fas fa-user-cog text-primary"></i> Control de Sesión</h5>
+                <div class="mt-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-success bg-opacity-10 rounded">
+                                <div class="fw-bold text-success" id="totalConnections">0</div>
+                                <small class="text-muted">Conexiones</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-info bg-opacity-10 rounded">
+                                <div class="fw-bold text-info" id="sessionUptime">00:00</div>
+                                <small class="text-muted">Tiempo activo</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-warning btn-sm" onclick="disconnectSession()" 
+                                data-bs-toggle="tooltip" title="Cierra su conexión SSH actual al OLT">
+                            <i class="fas fa-unlink"></i> Desconectar mi sesión
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="refreshConnectionStatus()"
+                                data-bs-toggle="tooltip" title="Actualiza el estado de las conexiones">
+                            <i class="fas fa-sync-alt"></i> Actualizar estado
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="testConnection()"
+                                data-bs-toggle="tooltip" title="Prueba la conectividad con el OLT">
+                            <i class="fas fa-heartbeat"></i> Test conexión
+                        </button>
+                    </div>
+                </div>
+            </div>            
+        </div>
+        <div class="col-md-4">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <h5><i class="fas fa-info-circle text-primary"></i> Información del sistema</h5>
+                <div class="mt-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center py-1">
+                                <span><i class="fas fa-server text-secondary me-2"></i>Modelo OLT</span>
+                                <span class="badge bg-secondary">ZTE C300</span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center py-1">
+                                <span><i class="fas fa-code-branch text-secondary me-2"></i>Versión</span>
+                                <span class="badge bg-primary">{{ config['APP_VERSION'] if config else '1.2.0' }}</span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex justify-content-between align-items-center py-1">
+                                <span><i class="fas fa-network-wired text-secondary me-2"></i>ONUs detectadas</span>
+                                <span class="badge bg-info" id="onusCount">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DE AUTORIZACIÓN -->
+<div class="modal fade" id="authorizeOntModal" tabindex="-1" aria-labelledby="authorizeOntModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="authorizeOntModalLabel">
+                    <i class="fas fa-user-check"></i> Autorizar ONT
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="authorizeOntForm">
+                <div class="modal-body">
+                    <!-- Información automática -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="fas fa-microchip"></i> Board</label>
+                            <input type="text" class="form-control" id="auth_board" name="board" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="fas fa-ethernet"></i> Port</label>
+                            <input type="text" class="form-control" id="auth_port" name="port" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label"><i class="fas fa-hashtag"></i> ONU ID</label>
+                            <input type="text" class="form-control bg-light" id="auth_onu_id" name="onu_id" readonly>
+                            <small class="text-muted">Se asignará automáticamente</small>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><i class="fas fa-barcode"></i> SN</label>
+                            <input type="text" class="form-control" id="auth_sn" name="sn" readonly>
+                        </div>
+                    </div>
+
+                    <!-- Configuración manual -->
+                    <hr>
+                    <h6 class="mb-3"><i class="fas fa-cog"></i> Configuración de ONT</h6>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><i class="fas fa-network-wired"></i> ONU type *</label>
+                            <select class="form-select" id="auth_onu_type" name="onu_type" required>
+                                <option value="">Seleccionar tipo...</option>
+                                <option value="HUAWEI-EG8145V5">HUAWEI-EG8145V5</option>
+                                <option value="HUAWEI-EG8145X6">HUAWEI-EG8145X6</option>
+                                <option value="V-SOL-V2801D-1GT1">V-SOL-V2801D-1GT1</option>
+                                <option value="ZTE-F601">ZTE-F601</option>
+                                <option value="ZTE-F670L">ZTE-F670L</option>
+                                <option value="NOKIA-G-010G-A">NOKIA-G-010G-A</option>
+                                <option value="TP-LINK-2600">TP-LINK-2600</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="fas fa-shield-alt"></i> ONU mode</label>
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="onu_mode" id="mode_routing" value="routing" checked>
+                                    <label class="form-check-label" for="mode_routing">Routing</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="onu_mode" id="mode_bridging" value="bridging">
+                                    <label class="form-check-label" for="mode_bridging">Bridging</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label"><i class="fas fa-tag"></i> User VLAN-ID *</label>
+                            <input type="number" class="form-control" id="auth_vlan" name="vlan" 
+                                   min="1" max="4094" placeholder="Ej: 40, 799" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><i class="fas fa-map-marker-alt"></i> Zone</label>
+                            <input type="text" class="form-control" id="auth_zone" name="zone" 
+                                   placeholder="Ej: JICAMARCA, LIMA_CENTRO">
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><i class="fas fa-user"></i> Name</label>
+                            <input type="text" class="form-control" id="auth_name" name="name" 
+                                   placeholder="Nombre del cliente o descripción">
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <small>
+                            <strong>Nota:</strong> Se configurará automáticamente con perfil UL100M, 
+                            TCONT 1, GEMPORT 1 y encriptación downstream.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="btn-authorize">
+                        <i class="fas fa-check"></i> Autorizar ONT
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="text-center">
+        <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <h4 class="text-primary mb-2">Consultando ONUs detectadas...</h4>
+        <p class="text-muted mb-3">Esta operación puede tardar unos momentos</p>
+        <div class="progress mb-2" style="height: 6px; width: 300px; margin: 0 auto;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
+                 style="width: 0%" id="loadingProgress"></div>
+        </div>
+        <small class="text-muted" id="loadingStatus">Iniciando consulta...</small>
+    </div>
+</div>
+
+<script>
+    // Variables globales
+    let isRefreshing = false;
+    let sessionStartTime = new Date();
+    let statisticsData = { totalQueries: 0, avgResponseTime: 0, lastResponseTime: 0 };
+    
+    // Inicialización
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeTooltips();
+        refreshConnectionStatus();
+        updateClock();
+        setInterval(updateClock, 1000);
+        setInterval(updateSessionUptime, 1000);
+        setInterval(refreshConnectionStatus, 30000);
+    });
+    
+    function initializeTooltips() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+    
+    // FUNCIÓN PARA ABRIR MODAL DE AUTORIZACIÓN
+    function openAuthorizeModal(board, port, sn, onuType = '') {
+        // Limpiar formulario
+        document.getElementById('authorizeOntForm').reset();
+        
+        // Llenar campos automáticos
+        document.getElementById('auth_board').value = board;
+        document.getElementById('auth_port').value = port;
+        document.getElementById('auth_sn').value = sn;
+        document.getElementById('auth_onu_id').value = 'Calculando...';
+        
+        // Pre-seleccionar tipo si viene
+        if (onuType) {
+            document.getElementById('auth_onu_type').value = onuType;
+        }
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('authorizeOntModal'));
+        modal.show();
+        
+        // Calcular siguiente ID
+        calculateNextOnuId(board, port);
+    }
+    
+    // Calcular siguiente ID de ONU
+    async function calculateNextOnuId(board, port) {
+        try {
+            const response = await fetch(`/api/next_onu_id/${board}/${port}`);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                document.getElementById('auth_onu_id').value = data.next_id;
+            } else {
+                document.getElementById('auth_onu_id').value = '?';
+                showToast('warning', 'No se pudo calcular el ID automáticamente');
+            }
+        } catch (error) {
+            console.error('Error calculando ONU ID:', error);
+            document.getElementById('auth_onu_id').value = '?';
+        }
+    }
+    
+    // Submit del formulario de autorización
+    document.getElementById('authorizeOntForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById('btn-authorize');
+        const originalHtml = btn.innerHTML;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Autorizando...';
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        
+        try {
+            const response = await fetch('/api/authorize_ont', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                showToast('success', 'ONT autorizada exitosamente');
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('authorizeOntModal'));
+                modal.hide();
+                
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                showToast('error', result.error || 'Error al autorizar ONT');
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('error', 'Error de conexión al autorizar ONT');
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+    
+    function refreshAutofind() {
+        if (isRefreshing) {
+            showToast('warning', 'Ya hay una consulta en progreso');
+            return;
+        }
+        
+        const button = document.getElementById('refreshBtn');
+        const icon = document.getElementById('refreshIcon');
+        const text = document.getElementById('refreshText');
+        const overlay = document.getElementById('loadingOverlay');
+        
+        isRefreshing = true;
+        icon.className = 'fas fa-spinner fa-spin';
+        text.textContent = 'Consultando...';
+        button.disabled = true;
+        overlay.style.display = 'flex';
+        
+        fetch('/api/autofind/refresh')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateAutofindTable(data.data, data.count);
+                    showToast('success', `Se encontraron ${data.count} ONUs`);
+                    updateLastUpdateTime();
+                    document.getElementById('onusCount').textContent = data.count;
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('error', 'Error al actualizar datos: ' + error.message);
+                updateAutofindTable([], 0);
+            })
+            .finally(() => {
+                icon.className = 'fas fa-sync-alt';
+                text.textContent = 'Actualizar';
+                button.disabled = false;
+                overlay.style.display = 'none';
+                isRefreshing = false;
+            });
+    }
+    
+    function updateAutofindTable(autofindList, count) {
+        const tableBody = document.getElementById('autofindTableBody');
+        const resultsCounter = document.getElementById('resultsCounter');
+        const counterBadge = document.getElementById('counterBadge');
+        
+        tableBody.innerHTML = '';
+        
+        if (autofindList.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-5">
+                        <i class="fas fa-search fa-3x mb-3"></i>
+                        <h5>No se encontraron ONUs</h5>
+                    </td>
+                </tr>
+            `;
+        } else {
+            autofindList.forEach((onu) => {
+                const row = `
+                    <tr>
+                        <td><span class="badge bg-secondary">${onu.number || '-'}</span></td>
+                        <td><span class="badge bg-info">${onu.pon_type || 'GPON'}</span></td>
+                        <td><strong>${onu.board || '-'}</strong></td>
+                        <td><strong>${onu.port || '-'}</strong></td>
+                        <td><code class="small">${onu.sn || '-'}</code></td>
+                        <td><span class="badge bg-secondary small">${(onu.type || 'Unknown').substring(0, 15)}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-success" 
+                                    onclick="openAuthorizeModal('${onu.board}', '${onu.port}', '${onu.sn}', '${onu.type || ''}')"
+                                    title="Autorizar ONT">
+                                <i class="fas fa-check"></i> Autorizar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+        
+        counterBadge.textContent = `${count} ONUs detectadas`;
+        resultsCounter.style.display = count >= 0 ? 'block' : 'none';
+    }
+    
+    function refreshConnectionStatus() {
+        fetch('/api/connections/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.active_connections !== undefined) {
+                    document.getElementById('connectionsCount').textContent = data.active_connections;
+                    document.getElementById('totalConnections').textContent = data.active_connections;
+                    document.getElementById('sessionId').textContent = data.current_session || 'Desconocido';
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    function disconnectSession() {
+        if (confirm('¿Está seguro de que desea desconectar su sesión?')) {
+            fetch('/api/session/disconnect')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('success', 'Sesión desconectada');
+                        refreshConnectionStatus();
+                        sessionStartTime = new Date();
+                    }
+                })
+                .catch(error => showToast('error', 'Error al desconectar'));
+        }
+    }
+    
+    function testConnection() {
+        fetch('/api/test')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    showToast('success', 'Conexión funcionando correctamente');
+                } else {
+                    showToast('warning', 'Conexión con problemas');
+                }
+            })
+            .catch(error => showToast('error', 'Error al probar conexión'));
+    }
+    
+    function updateSessionUptime() {
+        const now = new Date();
+        const diff = now - sessionStartTime;
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        const uptime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        document.getElementById('sessionUptime').textContent = uptime;
+    }
+    
+    function updateLastUpdateTime() {
+        const now = new Date();
+        const timeString = now.toLocaleString('es-ES');
+        document.getElementById('lastUpdateTime').textContent = timeString;
+    }
+    
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('currentTime').textContent = now.toLocaleTimeString('es-ES');
+    }
+    
+    function showToast(type, message, duration = 5000) {
+        const container = document.querySelector('.position-fixed.top-0.end-0') || createToastContainer();
+        const toastId = 'toast-' + Date.now();
+        const iconClass = {
+            'error': 'fa-exclamation-triangle text-danger',
+            'success': 'fa-check-circle text-success',
+            'warning': 'fa-exclamation-circle text-warning',
+            'info': 'fa-info-circle text-info'
+        }[type] || 'fa-info-circle text-info';
+        
+        const toastHTML = `
+            <div class="toast show" id="${toastId}" role="alert" data-bs-autohide="true" data-bs-delay="${duration}">
+                <div class="toast-header">
+                    <i class="fas ${iconClass} me-2"></i>
+                    <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">${message}</div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', toastHTML);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement);
+        
+        setTimeout(() => {
+            toast.hide();
+            setTimeout(() => toastElement.remove(), 500);
+        }, duration);
+    }
+    
+    function createToastContainer() {
+        const container = document.createElement('div');
+        container.className = 'position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '11000';
+        document.body.appendChild(container);
+        return container;
+    }
+</script>
+
+{% endblock %}

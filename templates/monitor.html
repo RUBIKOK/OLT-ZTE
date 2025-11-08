@@ -1,0 +1,373 @@
+{% extends "index.html" %}
+
+{% block status %}active{% endblock %}
+
+{% block content %}
+
+<div class="container py-5">
+
+    <!-- Mensajes flash mejorados -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11000;">
+        {% for category, message in messages %}
+        <div class="toast show" role="alert">
+            <div class="toast-header">
+                <i
+                    class="fas {% if category == 'error' %}fa-exclamation-triangle text-danger{% elif category == 'success' %}fa-check-circle text-success{% elif category == 'warning' %}fa-exclamation-circle text-warning{% else %}fa-info-circle text-info{% endif %} me-2"></i>
+                <strong class="me-auto">{{ category.title() }}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">{{ message }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Header profesional -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div
+                class="d-flex align-items-center justify-content-between p-4 bg-gradient rounded shadow-sm border-start border-primary border-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="fa-solid fa-globe fa-2x text-primary"></i>
+                    </div>
+                    <div>
+                        <h2 class="mb-1 fw-bold">Monitor de Puertos PON</h2>
+                        <p class="text-muted mb-0">Monitoreo en tiempo real del estado de puertos GPON</p>
+                    </div>
+                </div>
+                <div class="text-end">
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                    <small class="text-success">
+                        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>
+                        Sistema activo
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="form-card rounded shadow mb-4">
+        <h5 class="mb-3"><i class="fas fa-search"></i> Consultar Tarjeta</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="tarjetaInput" class="form-label">
+                    <i class="fas fa-microchip"></i> Tarjeta
+                </label>
+                <select class="form-control" id="tarjetaInput" name="tarjeta" required>
+                    <option value="">Seleccionar tarjeta...</option>
+                    <option value="1" {% if tarjeta=="1" %}selected{% endif %}>1</option>
+                    <option value="2" {% if tarjeta=="2" %}selected{% endif %}>2</option>
+                    <option value="3" {% if tarjeta=="3" %}selected{% endif %}>3</option>
+                    <option value="4" {% if tarjeta=="4" %}selected{% endif %}>4</option>
+                    <option value="5" {% if tarjeta=="5" %}selected{% endif %}>5</option>
+                    <option value="6" {% if tarjeta=="6" %}selected{% endif %}>6</option>
+                    <option value="7" {% if tarjeta=="7" %}selected{% endif %}>7</option>
+                    <option value="8" {% if tarjeta=="8" %}selected{% endif %}>8</option>
+                    <option value="9" {% if tarjeta=="9" %}selected{% endif %}>9</option>
+                    <option value="10" {% if tarjeta=="10" %}selected{% endif %}>10</option>
+                    <option value="11" {% if tarjeta=="11" %}selected{% endif %}>11</option>
+                    <option value="12" {% if tarjeta=="12" %}selected{% endif %}>12</option>
+                    <option value="13" {% if tarjeta=="13" %}selected{% endif %}>13</option>
+                    <option value="14" {% if tarjeta=="14" %}selected{% endif %}>14</option>
+                    <option value="15" {% if tarjeta=="15" %}selected{% endif %}>15</option>
+                    <option value="16" {% if tarjeta=="16" %}selected{% endif %}>16</option>
+                    <option value="17" {% if tarjeta=="17" %}selected{% endif %}>17</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="warningThreshold" class="form-label">
+                    <i class="fas fa-exclamation-triangle"></i> Umbral Warning (%)
+                </label>
+                <input type="number" class="form-control" id="warningThreshold" value="50" min="0" max="100" required>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-success w-100" onclick="actualizarDatos()" id="updateBtn">
+                    <span class="btn-text"><i class="fas fa-sync-alt"></i> Actualizar Datos</span>
+                    <span class="loading-spinner d-none"><i class="fas fa-spinner fa-spin"></i> Consultando...</span>
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="d-flex justify-content-center gap-3 flex-wrap mb-4">
+        <div class="d-flex align-items-center gap-2 bg-light bg-opacity-10 p-2 rounded">
+            <div class="rounded-circle bg-success" style="width: 20px; height:20px;"></div> Online
+        </div>
+        <div class="d-flex align-items-center gap-2 bg-light bg-opacity-10 p-2 rounded">
+            <div class="rounded-circle bg-warning" style="width: 20px; height:20px;"></div> Warning
+        </div>
+        <div class="d-flex align-items-center gap-2 bg-light bg-opacity-10 p-2 rounded">
+            <div class="rounded-circle bg-danger" style="width: 20px; height:20px;"></div> Critical
+        </div>
+    </div>
+
+    <!-- Statistics Summary -->
+    <div id="statsContainer" class="row mb-4 d-none text-center">
+        <div class="col-md-3 mb-2">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <div class="fs-1 fw-bold" id="totalPuertos">0</div>
+                <div>Puertos Totales</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-2">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <div class="fs-1 fw-bold text-success" id="puertosOnline">0</div>
+                <div>Puertos Online</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-2">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <div class="fs-1 fw-bold text-warning" id="puertosWarning">0</div>
+                <div>Puertos Warning</div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-2">
+            <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+                <div class="fs-1 fw-bold text-danger" id="puertosCritical">0</div>
+                <div>Puertos Critical</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ports Container -->
+    <div class="p-4 bg-light bg-opacity-10 rounded shadow">
+        <div id="chassisHeader" class="text-center mb-4">
+            <h3>Seleccione una tarjeta para consultar</h3>
+        </div>
+        <div id="puertosContainer" class="row g-3">
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-search fa-3x mb-3"></i>
+                <h4>No hay datos para mostrar</h4>
+                <p>Seleccione una tarjeta y haga clic en "Actualizar Datos"</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals (igual que antes) -->
+<div class="modal fade" id="errorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-danger">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-danger"></i> Error</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="errorMessage">Error al consultar los datos</div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="portModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title" id="portModalTitle">Detalles del Puerto</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="portModalBody"></div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-primary" onclick="consultarPuertoDetalle()">
+                    <i class="fas fa-search"></i> Ver ONTs Detalle
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentPortData = null;
+    let currentTarjeta = null;
+
+    async function actualizarDatos() {
+        const tarjeta = document.getElementById('tarjetaInput').value.trim();
+        const overlay = document.getElementById('loadingOverlay');
+
+        if (!tarjeta) {
+            showError('Por favor ingrese una tarjeta válida');
+            return;
+        }
+
+        if (!/^(1[0-7]|[1-9])$/.test(tarjeta)) {
+            showError('Formato inválido. Solo se permiten números entre 1 y 17');
+            return;
+        }
+
+        // Mostrar overlay
+        overlay.style.display = 'flex';
+
+        try {
+            const response = await fetch(`/api/board/${tarjeta}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            });
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('El servidor no devolvió JSON válido. Verifique la configuración.');
+            }
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Error HTTP ${response.status}`);
+            }
+
+            mostrarDatos(data);
+
+        } catch (error) {
+            showError(error.message || 'Error desconocido al consultar los datos');
+        } finally {
+            // Ocultar overlay
+            overlay.style.display = 'none';
+        }
+    }
+
+
+    function mostrarDatos(data) {
+        const { tarjeta, puertos, estadisticas } = data;
+
+        // Actualizar header
+        document.getElementById('chassisHeader').innerHTML =
+            `<h3><i class="fas fa-microchip"></i> Tarjeta ${tarjeta} - ${estadisticas.total_puertos} Puertos</h3>`;
+
+        // Mostrar estadísticas
+        const statsContainer = document.getElementById('statsContainer');
+        statsContainer.style.display = 'flex';
+
+        document.getElementById('totalPuertos').textContent = estadisticas.total_puertos;
+        document.getElementById('puertosOnline').textContent = estadisticas.puertos_online;
+        document.getElementById('puertosWarning').textContent = estadisticas.puertos_warning;
+        document.getElementById('puertosCritical').textContent = estadisticas.puertos_critical;
+
+        // Generar puertos
+        const container = document.getElementById('puertosContainer');
+
+        if (puertos.length === 0) {
+            container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h4>No se encontraron puertos</h4>
+                        <p>No hay datos disponibles para la tarjeta ${tarjeta}</p>
+                    </div>
+                `;
+            return;
+        }
+
+        container.innerHTML = puertos.map(puerto => {
+            let colorClass = puerto.status === 'online' ? 'bg-success bg-opacity-25' :
+                puerto.status === 'warning' ? 'bg-warning bg-opacity-25' :
+                    'bg-danger bg-opacity-25';
+            return `
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <div class="rounded p-3 mb-3 text-center shadow-sm ${colorClass}" onclick="showPortDetails(${JSON.stringify(puerto).replace(/"/g, '&quot;')})">
+                        <div class="h6">Puerto ${puerto.puerto}</div>
+                        <div><small>Total: ${puerto.total_onts}</small> | <small>Online: ${puerto.online_onts}</small></div>
+                        <div class="small opacity-75">${puerto.percentage}% activo</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function showPortDetails(puerto) {
+        currentPortData = puerto;
+
+        const statusText = {
+            'online': '✅ ONLINE',
+            'warning': '⚠️ WARNING',
+            'critical': '❌ CRITICAL'
+        }[puerto.status];
+
+        const statusClass = {
+            'online': 'text-success',
+            'warning': 'text-warning',
+            'critical': 'text-danger'
+        }[puerto.status];
+
+        document.getElementById('portModalTitle').innerHTML =
+            `Puerto ${puerto.puerto} - Detalles`;
+
+        document.getElementById('portModalBody').innerHTML = `
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Estado:</h6>
+                        <p class="${statusClass} h5">${statusText}</p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Porcentaje Activo:</h6>
+                        <p class="h5">${puerto.percentage}%</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-4">
+                        <h6>ONT Total:</h6>
+                        <p class="h6">${puerto.total_onts}</p>
+                    </div>
+                    <div class="col-4">
+                        <h6>ONT Online:</h6>
+                        <p class="h6 text-success">${puerto.online_onts}</p>
+                    </div>
+                    <div class="col-4">
+                        <h6>ONT Offline:</h6>
+                        <p class="h6 text-danger">${puerto.offline_onts}</p>
+                    </div>
+                </div>
+                <hr>
+                <div class="alert ${puerto.status === 'critical' ? 'alert-danger' : puerto.status === 'warning' ? 'alert-warning' : 'alert-success'}">
+                    <i class="fas fa-info-circle"></i>
+                    ${puerto.status === 'critical' ? 'Puerto requiere atención inmediata' :
+                puerto.status === 'warning' ? 'Puerto requiere revisión' :
+                    'Puerto funcionando correctamente'}
+                </div>
+            `;
+
+        new bootstrap.Modal(document.getElementById('portModal')).show();
+    }
+
+    function consultarPuertoDetalle() {
+        if (currentPortData) {
+            const tarjeta = document.getElementById('tarjetaInput').value;
+            const url = `{{ url_for('ont.ont_page') }}?tarjeta=${tarjeta}&puerto=${currentPortData.puerto}`;
+            window.open(url, '_blank');
+        }
+    }
+    function showError(message) {
+        document.getElementById('errorMessage').textContent = message;
+        new bootstrap.Modal(document.getElementById('errorModal')).show();
+    }
+
+    // Auto-refresh cada 60 segundos si hay datos cargados
+    setInterval(() => {
+        const tarjeta = document.getElementById('tarjetaInput').value.trim();
+        if (tarjeta && document.getElementById('statsContainer').style.display !== 'none') {
+            actualizarDatos();
+        }
+    }, 60000);
+
+    // Permitir actualizar con Enter
+    document.getElementById('tarjetaInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            actualizarDatos();
+        }
+    });
+</script>
+
+{% endblock %}

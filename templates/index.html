@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}OLT JP II MONITOR{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+
+<body>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1 class="h4"><i class="fas fa-network-wired"></i> OLT PRINCIPAL</h1>
+            <div class="subtitle">ZTE - C300</div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-item">
+                <a href="{{ url_for('ont.home') }}"
+                    class="nav-link {% if request.endpoint == 'ont.home' %}active{% endif %}">
+                    <i class="fas fa-list"></i>
+                    Inicio
+                </a>
+            </div>
+
+            <div class="nav-item">
+                <a href="{{ url_for('ont.ont_page') }}"
+                    class="nav-link {% if request.endpoint == 'ont.ont_page' %}active{% endif %}">
+                    <i class="fas fa-list"></i>
+                    Monitor Individual ONTs
+                </a>
+            </div>
+
+            <div class="nav-item">
+                <a href="{{ url_for('ont.monitor') }}"
+                    class="nav-link {% if request.endpoint == 'ont.monitor' %}active{% endif %}">
+                    <i class="fas fa-th-large"></i>
+                    Monitor General Puertos
+                </a>
+            </div>
+
+
+            <div class="nav-section">
+                <div class="nav-section-title">Herramientas</div>
+                <div class="nav-item">
+                    <a class="nav-link" data-bs-toggle="modal" data-bs-target="#excelModal" href="#">
+                        <i class="fas fa-file-excel"></i>
+                        Exportar Excel
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="{{ url_for('ont.barrido') }}"
+                        class="nav-link {% if request.endpoint == 'ont.barrido' %}active{% endif %}">
+                        <i class="fas fa-th-large"></i>
+                        Barrido de Puertos
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-chart-line"></i>
+                        Reportes
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-history"></i>
+                        Historial
+                    </a>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Configuración</div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        Ajustes
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="#" class="nav-link">
+                        <i class="fas fa-bell"></i>
+                        Alertas
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Bar -->
+        <div class="topbar">
+            <div class="d-flex align-items-center">
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="ms-3">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="centix" class="img-fluid"
+                        style="max-width:150px; height:auto;">
+                </div>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Modal para opciones de Excel -->
+    <div class="modal fade" id="excelModal" tabindex="-1" aria-labelledby="excelModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="excelModalLabel">
+                        <i class="fas fa-file-excel"></i> Opciones de Exportación Excel
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                        aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Exportar por Tarjeta -->
+                    <div class="card h-100 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-microchip"></i> Exportar por Tarjeta</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small">Descargar todos los datos de una tarjeta completa</p>
+                            <form id="exportTarjetaForm">
+                                <div class="mb-3">
+                                    <label for="tarjetaCompleta" class="form-label">
+                                        <i class="fas fa-microchip"></i> Tarjeta
+                                    </label>
+                                    <select class="form-select" id="tarjetaCompleta" name="tarjeta" required>
+                                        <option value="">Seleccionar tarjeta...</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                        <option value="13">13</option>
+                                        <option value="14">14</option>
+                                        <option value="15">15</option>
+                                        <option value="16">16</option>
+                                        <option value="17">17</option>
+                                    </select>
+                                </div>
+                                <div class="mb-4">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <small>Se exportarán todos los puertos de la tarjeta
+                                            seleccionada</small>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-info w-100" id="submit-tarjeta">
+                                    <i class="fas fa-download"></i> Exportar Tarjeta
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center py-3 bg-light border-top mt-5">
+        <small class="text-muted">
+            Monitor OLT Huawei | Versión {{ config['APP_VERSION'] }}
+        </small>
+    </footer>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+        <h4 class="mt-3 text-primary">Consultando dispositivo...</h4>
+        <p class="text-muted">Por favor espere, esto puede tomar unos momentos</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById("exportTarjetaForm");
+            const loadingOverlay = document.getElementById("loadingOverlay");
+            const submitBtn = document.getElementById("submit-tarjeta");
+
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
+
+                const tarjeta = document.getElementById("tarjetaCompleta").value.trim();
+                if (!tarjeta) {
+                    alert("Por favor seleccione una tarjeta");
+                    return;
+                }
+
+                // Mostrar overlay
+                loadingOverlay.classList.add('show');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando Excel...';
+
+                // Iniciar descarga con iframe oculto
+                const downloadUrl = `/download_tarjeta/${tarjeta}`;
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = downloadUrl;
+                document.body.appendChild(iframe);
+
+                // Detectar cuando la descarga ha iniciado usando cookies
+                const downloadCheckInterval = setInterval(function () {
+                    // Verificar si existe la cookie de descarga completada
+                    if (getCookie('download_started') === 'true') {
+                        clearInterval(downloadCheckInterval);
+
+                        // Limpiar cookie
+                        document.cookie = 'download_started=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+
+                        // Ocultar loading
+                        loadingOverlay.classList.remove('show');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-download"></i> Exportar Tarjeta';
+
+                        // Cerrar modal
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('excelModal'));
+                        if (modal) {
+                            modal.hide();
+                        }
+
+                        // Limpiar iframe
+                        setTimeout(() => {
+                            if (iframe.parentNode) {
+                                document.body.removeChild(iframe);
+                            }
+                        }, 1000);
+                    }
+                }, 200); // Revisar cada 200ms
+
+                // Timeout de seguridad (ocultar después de 5 segundos)
+                setTimeout(function () {
+                    clearInterval(downloadCheckInterval);
+                    loadingOverlay.classList.remove('show');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-download"></i> Exportar Tarjeta';
+
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('excelModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                }, 5000);
+            });
+
+            // Función helper para leer cookies
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+        });
+    </script>
+</body>
+
+</html>

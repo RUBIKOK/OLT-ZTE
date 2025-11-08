@@ -1,0 +1,322 @@
+{% extends "index.html" %}
+
+{% block title %}Barrido Rápido - OLT Monitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="fas fa-search"></i> Barrido Rápido de Puerto</h2>
+            <p class="text-muted mb-0">Consulta rápida de ONTs - Solo ID, Estado y Nombre</p>
+        </div>
+    </div>
+
+    <!-- Formulario de consulta -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Parámetros de Consulta</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" id="barrido-form">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label for="tarjeta" class="form-label">
+                            <i class="fas fa-microchip"></i> Tarjeta/Slot
+                        </label>
+                        <select class="form-select form-select-lg" id="tarjeta" name="tarjeta" required>
+                            <option value="">Seleccionar...</option>
+                            {% for i in range(1, 18) %}
+                            <option value="{{ i }}" {% if tarjeta==i|string %}selected{% endif %}>{{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-5">
+                        <label for="puerto" class="form-label">
+                            <i class="fas fa-ethernet"></i> Puerto PON
+                        </label>
+                        <select class="form-select form-select-lg" id="puerto" name="puerto" required>
+                            <option value="">Seleccionar...</option>
+                            {% for i in range(1,17) %}
+                            <option value="{{ i }}" {% if puerto==i|string %}selected{% endif %}>{{ i }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary btn-lg w-100" id="btn-consultar">
+                            <i class="fas fa-search"></i> Consultar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- NUEVO: Checkbox para habilitar nombres -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card bg-light border-0">
+                            <div class="card-body py-2">
+                                <div class="form-check form-switch">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        role="switch"
+                                        id="habilitar_nombres" 
+                                        name="habilitar_nombres"
+                                        {% if habilitar_nombres %}checked{% endif %}
+                                        onchange="toggleWarning(this)"
+                                    >
+                                    <label class="form-check-label" for="habilitar_nombres">
+                                        <strong><i class="fas fa-user-tag"></i> Obtener nombres/descripciones de ONTs</strong>
+                                        <i class="fas fa-question-circle text-info ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           data-bs-placement="top"
+                                           title="Consulta la descripción de cada ONT. Aumenta el tiempo de consulta (~1-2 seg por ONT).">
+                                        </i>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Warning dinámico -->
+                <div class="row mt-2">
+                    <div class="col-12">
+                        <div id="warning-nombres" class="alert alert-warning mb-0" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i> 
+                            <strong>Advertencia:</strong> Habilitar nombres aumenta significativamente el tiempo de consulta. 
+                            Para puertos con muchas ONTs puede tardar varios minutos.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="fas fa-info-circle"></i>
+                    <small>
+                        <strong>Barrido rápido:</strong> Solo consulta el estado de las ONTs. 
+                        Activa el checkbox arriba para incluir nombres (más lento).
+                    </small>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    {% if resultados %}
+    <div class="card shadow-sm">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-list-ul"></i> 
+                Resultados - Tarjeta {{ resultados.tarjeta }} Puerto {{ resultados.puerto }}
+                {% if resultados.get('incluyo_nombres') %}
+                <span class="badge bg-warning text-dark ms-2">
+                    <i class="fas fa-user-tag"></i> Con nombres
+                </span>
+                {% endif %}
+            </h5>
+            <span class="badge bg-light text-dark fs-6">
+                Total: {{ resultados.estadisticas.total }}
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <!-- Estadísticas -->
+            <div class="row g-0 border-bottom">
+                <div class="col-md-4 border-end p-3 text-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i class="fas fa-list fa-2x text-primary me-3"></i>
+                        <div>
+                            <h3 class="mb-0">{{ resultados.estadisticas.total }}</h3>
+                            <small class="text-muted">Total ONTs</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 border-end p-3 text-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i class="fas fa-check-circle fa-2x text-success me-3"></i>
+                        <div>
+                            <h3 class="mb-0 text-success">{{ resultados.estadisticas.online }}</h3>
+                            <small class="text-muted">Online</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 p-3 text-center">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <i class="fas fa-times-circle fa-2x text-danger me-3"></i>
+                        <div>
+                            <h3 class="mb-0 text-danger">{{ resultados.estadisticas.offline }}</h3>
+                            <small class="text-muted">Offline</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de ONTs -->
+            {% if resultados.onts %}
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 10%"><i class="fas fa-hashtag"></i> ONT ID</th>
+                            <th style="width: 15%"><i class="fas fa-signal"></i> Estado</th>
+                            <th style="width: 75%"><i class="fas fa-tag"></i> Descripción/Nombre</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ont in resultados.onts %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-secondary fs-6">{{ ont.id }}</span>
+                            </td>
+                            <td>
+                                {% if ont.estado.lower() == 'online' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle"></i> ONLINE
+                                </span>
+                                {% elif ont.estado.lower() == 'disabled' %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-ban"></i> DISABLED
+                                </span>
+                                {% elif ont.estado.lower() == 'dying_gasp' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-exclamation-triangle"></i> DYING GASP
+                                </span>
+                                {% elif ont.estado.upper() == 'LOS' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-signal"></i> LOS
+                                </span>
+                                {% elif ont.estado.lower() == 'offline' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times-circle"></i> OFFLINE
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-question-circle"></i> {{ ont.estado.upper() }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ont.descripcion %}
+                                <span class="text-dark">{{ ont.descripcion }}</span>
+                                {% else %}
+                                <span class="text-muted fst-italic">
+                                    <i class="fas fa-info-circle"></i> Sin descripción disponible
+                                </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-5 text-center">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No se encontraron ONTs en este puerto</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Estilos personalizados -->
+<style>
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    padding: 0.5em 0.75em;
+}
+
+.fs-6 {
+    font-size: 0.95rem;
+}
+
+.form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.form-check-input:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.25rem rgba(40, 167, 69, 0.25);
+}
+
+#warning-nombres {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+
+<!-- Scripts -->
+<script>
+// Toggle warning cuando cambia el checkbox
+function toggleWarning(checkbox) {
+    const warning = document.getElementById('warning-nombres');
+    if (checkbox.checked) {
+        warning.style.display = 'block';
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+// Inicializar tooltips de Bootstrap
+document.addEventListener('DOMContentLoaded', function() {
+    // Activar tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Mostrar warning si el checkbox ya está marcado
+    const checkbox = document.getElementById('habilitar_nombres');
+    if (checkbox && checkbox.checked) {
+        toggleWarning(checkbox);
+    }
+});
+
+// Formulario: Cambiar botón al enviar
+document.getElementById('barrido-form').addEventListener('submit', function(e) {
+    const btn = document.getElementById('btn-consultar');
+    const checkbox = document.getElementById('habilitar_nombres');
+    
+    // Cambiar texto del botón según el modo
+    if (checkbox.checked) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando con nombres...';
+    } else {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
+    }
+    
+    // Mostrar loading overlay si existe
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.classList.add('show');
+    }
+});
+
+// Auto-ocultar el loading después de que cargue la página
+window.addEventListener('load', function() {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        setTimeout(() => {
+            loadingOverlay.classList.remove('show');
+        }, 500);
+    }
+});
+</script>
+
+{% endblock %}

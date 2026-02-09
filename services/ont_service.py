@@ -4,6 +4,7 @@ import datetime
 from typing import List, Dict
 import logging
 import re
+import time
 from models.ont_model import ONT, ONTCollection
 
 logger = logging.getLogger(__name__)
@@ -358,20 +359,19 @@ class ONTService:
                             'distance': None
                         })
             
-            # try:
-            #     onts_list = list(onts_data.values())
-            #     onts_enriquecidas = self._enriquecer_con_descripciones_zte(
-            #         onts_list, tarjeta, puerto
-            #     )
+            try:
+                onts_list = list(onts_data.values())
+                onts_enriquecidas = self._enriquecer_con_descripciones_zte(
+                     onts_list, tarjeta, puerto)
 
-            #     # Actualizar los valores de vuelta en el dict principal
-            #     for ont in onts_enriquecidas:
-            #         ont_id = ont['id']
-            #         if ont_id in onts_data:
-            #             onts_data[ont_id]['descripcion'] = ont.get('descripcion')
+                # Actualizar los valores de vuelta en el dict principal
+                for ont in onts_enriquecidas:
+                     ont_id = ont['id']
+                     if ont_id in onts_data:
+                         onts_data[ont_id]['descripcion'] = ont.get('descripcion')
 
-            # except Exception as e:
-            #     logger.warning(f"No se pudo enriquecer con descripciones: {e}")
+            except Exception as e:
+                 logger.warning(f"No se pudo enriquecer con descripciones: {e}")
                 
             return onts_data
             
@@ -1451,40 +1451,47 @@ class ONTService:
                 
                 # Nombre (si se proporciona)
                 if name:
-                    name_clean = name.replace(' ', '_')[:32]  # Máximo 32 caracteres
+                    name_clean = name.replace(' ', '_')
                     cmd4 = f"name {name_clean}"
                     self.session_connection.execute_command(cmd4, timeout=10)
                     commands_executed.append(cmd4)
+                    time.sleep(5)
                 
                 # SN binding
                 cmd5 = "sn-bind enable sn"
                 self.session_connection.execute_command(cmd5, timeout=10)
                 commands_executed.append(cmd5)
+                time.sleep(5)
                 
                 # TCONT
-                cmd6 = "tcont 1 name T1 profile UL100M"
+                cmd6 = "tcont 1 name T1 profile UL1G"
                 self.session_connection.execute_command(cmd6, timeout=10)
                 commands_executed.append(cmd6)
+                time.sleep(5)
                 
                 # GEMPORT
                 cmd7 = "gemport 1 unicast tcont 1 dir both"
                 self.session_connection.execute_command(cmd7, timeout=10)
                 commands_executed.append(cmd7)
+                time.sleep(5)
                 
                 # Encriptación
                 cmd8 = "encrypt 1 enable downstream"
                 self.session_connection.execute_command(cmd8, timeout=10)
                 commands_executed.append(cmd8)
+                time.sleep(5)
                 
                 # Switchport
                 cmd9 = "switchport mode hybrid vport 1"
                 self.session_connection.execute_command(cmd9, timeout=10)
                 commands_executed.append(cmd9)
+                time.sleep(5)
                 
                 # Service port
                 cmd10 = f"service-port 1 vport 1 user-vlan {vlan} vlan {vlan}"
                 self.session_connection.execute_command(cmd10, timeout=10)
                 commands_executed.append(cmd10)
+                time.sleep(5)
                 
                 # Salir de interface
                 self.session_connection.execute_command("exit", timeout=5)
@@ -1493,13 +1500,25 @@ class ONTService:
                 cmd11 = f"pon-onu-mng gpon-onu_1/{board}/{port}:{onu_id}"
                 self.session_connection.execute_command(cmd11, timeout=10)
                 commands_executed.append(cmd11)
+                time.sleep(5)
                 
                 # Service
-                service_name = zone if zone else "ServiceName"
+                # service_name = zone if zone else "ServiceName"
                 cmd12 = f"service ServiceName type internet gemport 1 vlan {vlan}"
                 self.session_connection.execute_command(cmd12, timeout=10)
                 commands_executed.append(cmd12)
+                time.sleep(5)
                 
+                # ============================================
+                # ⭐ AQUÍ SE AGREGA EL COMANDO PARA BRIDGING ⭐
+                # ============================================
+                if onu_mode.lower() == 'bridging':
+                    cmd13 = f"vlan port eth_0/1 mode tag vlan {vlan}"
+                    self.session_connection.execute_command(cmd13, timeout=10)
+                    commands_executed.append(cmd13)
+                    logger.info(f"Modo Bridging: VLAN {vlan} configurada en eth_0/1")
+                    time.sleep(5)
+            
                 # Salir
                 self.session_connection.execute_command("exit", timeout=5)
                 self.session_connection.execute_command("exit", timeout=5)
@@ -1532,5 +1551,297 @@ class ONTService:
             logger.error(f"Error autorizando ONT: {e}")
             raise
 
+    def eliminar_ont(self, board: str, port: str, ont_id: str) -> dict:
+        '''Elimina una ONT del OLT'''
+        try:
+            logger.info(f"Eliminando ONT: {board}/{port}:{ont_id}")
+            
+            # Validaciones
+            if not all([board, port, ont_id]):
+                raise ValueError("Faltan parámetros obligatorios")
+            
+            commands_executed = []
+            
+            try:
+                # Entrar a modo configuración
+                self.session_connection.execute_command("configure terminal", timeout=10)
+                commands_executed.append("configure terminal")
+                
+                # Entrar a la interfaz gpon-olt
+                cmd1 = f"interface gpon-olt_1/{board}/{port}"
+                self.session_connection.execute_command(cmd1, timeout=10)
+                commands_executed.append(cmd1)
+                
+                # Eliminar ONU
+                cmd2 = f"no onu {ont_id}"
+                output = self.session_connection.execute_command(cmd2, timeout=15)
+                commands_executed.append(cmd2)
+                
+                # Verificar si hubo errores
+                if "error" in output.lower() or "invalid" in output.lower():
+                    raise Exception(f"Error al eliminar ONT: {output}")
+                
+                # Salir de la interfaz
+                self.session_connection.execute_command("exit", timeout=5)
+                
+                # Salir de config mode
+                self.session_connection.execute_command("exit", timeout=5)
+                
+                # Guardar configuración
+                self.session_connection.execute_command("write", timeout=30)
+                commands_executed.append("write")
+                
+                logger.info(f"ONT {ont_id} eliminada exitosamente de {board}/{port}")
+                
+                return {
+                    'status': 'success',
+                    'message': f'ONT {ont_id} eliminada exitosamente',
+                    'ont_id': ont_id,
+                    'commands_executed': commands_executed
+                }
+                
+            except Exception as cmd_error:
+                logger.error(f"Error ejecutando comandos de eliminación: {cmd_error}")
+                # Intentar salir de los modos de configuración
+                try:
+                    self.session_connection.execute_command("exit", timeout=5)
+                    self.session_connection.execute_command("exit", timeout=5)
+                except:
+                    pass
+                raise
+                
+        except Exception as e:
+            logger.error(f"Error eliminando ONT: {e}")
+            raise
 
-    
+    def buscar_ont_por_sn(self, sn: str) -> dict:
+        """Busca una ONT por Serial Number usando comando directo de ZTE"""
+        try:
+            logger.info(f"Buscando ONT con SN: {sn}")
+            
+            # Limpiar SN
+            sn_clean = re.sub(r'[^A-Za-z0-9]', '', sn.upper())
+            
+            # Ejecutar comando directo de búsqueda
+            output = self.session_connection.execute_command(
+                f"show gpon onu by sn {sn_clean}",
+                delay_factor=2,
+                timeout=15
+            )
+            
+            logger.debug(f"Output búsqueda: {output}")
+            
+            # Parsear resultado
+            # Formato esperado:
+            # SearchResult
+            # -----------------
+            # gpon-onu_1/1/16:1
+            
+            onu_interface = None
+            lines = output.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                # Buscar línea que contenga gpon-onu_
+                if 'gpon-onu_' in line:
+                    onu_interface = line.strip()
+                    break
+            
+            if not onu_interface:
+                logger.info(f"ONT {sn_clean} no encontrada")
+                return {
+                    'status': 'success',
+                    'found': False,
+                    'message': f'ONT con SN {sn_clean} no encontrada'
+                }
+            
+            # Parsear interface: gpon-onu_1/1/16:1
+            # Formato: gpon-onu_BOARD/PORT:ONT_ID
+            match = re.match(r'gpon-onu_(\d+)/(\d+)/(\d+):(\d+)', onu_interface)
+            
+            if not match:
+                raise Exception(f"Formato de interface inválido: {onu_interface}")
+            
+            frame = match.group(1)  # Siempre 1
+            board = match.group(2)
+            port = match.group(3)
+            ont_id = match.group(4)
+            
+            logger.info(f"ONT encontrada en: Board {board}, Port {port}, ID {ont_id}")
+            
+            # Obtener detalles completos
+            ont_details = self._obtener_detalles_completos_zte(
+                board, port, ont_id, onu_interface
+            )
+            
+            return {
+                'status': 'success',
+                'found': True,
+                'data': ont_details
+            }
+            
+        except Exception as e:
+            logger.error(f"Error buscando ONT por SN: {e}")
+            raise
+
+
+    def _obtener_detalles_completos_zte(self, board: str, port: str, 
+                                        ont_id: str, interface: str) -> dict:
+        """Obtiene detalles completos de una ONT usando comandos ZTE"""
+        try:
+            # Ejecutar comando detail-info
+            output = self.session_connection.execute_command(
+                f"show gpon onu detail-info {interface}",
+                delay_factor=2,
+                timeout=20
+            )
+            
+            # Parsear información básica
+            ont_data = self._parsear_detail_info_zte(output, board, port, ont_id)
+            
+            # Obtener información de potencia
+            try:
+                power_output = self.session_connection.execute_command(
+                    f"show pon power attenuation {interface}",
+                    delay_factor=2,
+                    timeout=15
+                )
+                self._parsear_power_zte(power_output, ont_data)
+            except Exception as e:
+                logger.warning(f"No se pudo obtener info de potencia: {e}")
+            
+            return ont_data
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo detalles: {e}")
+            # Retornar info básica si falla
+            return {
+                'sn': 'Unknown',
+                'board': board,
+                'port': port,
+                'ont_id': ont_id,
+                'interface': interface,
+                'type': 'Unknown',
+                'estado': 'unknown',
+                'ont_rx': None,
+                'olt_rx': None,
+                'temperature': None,
+                'distance': None,
+                'descripcion': '',
+                'name': '',
+                'admin_state': 'unknown',
+                'phase_state': 'unknown',
+                'online_duration': '',
+                'onu_distance': ''
+            }
+
+
+    def _parsear_detail_info_zte(self, output: str, board: str, 
+                                port: str, ont_id: str) -> dict:
+        """Parsea el output de 'show gpon onu detail-info'"""
+        lines = output.split('\n')
+        
+        ont_data = {
+            'board': board,
+            'port': port,
+            'ont_id': ont_id,
+            'interface': f"gpon-onu_1/{board}/{port}:{ont_id}",
+            'sn': '',
+            'type': '',
+            'name': '',
+            'estado': 'unknown',
+            'admin_state': '',
+            'phase_state': '',
+            'descripcion': '',
+            'online_duration': '',
+            'onu_distance': '',
+            'ont_rx': None,
+            'olt_rx': None,
+            'temperature': None,
+            'distance': None
+        }
+        
+        for line in lines:
+            line = line.strip()
+            
+            if ':' not in line:
+                continue
+            
+            key, value = line.split(':', 1)
+            key = key.strip()
+            value = value.strip()
+            
+            if key == 'Name':
+                ont_data['name'] = value
+            elif key == 'Type':
+                ont_data['type'] = value
+            elif key == 'State':
+                # ready, offline, etc.
+                pass
+            elif key == 'Admin state':
+                ont_data['admin_state'] = value
+            elif key == 'Phase state':
+                ont_data['phase_state'] = value
+                # Determinar estado general
+                if value == 'working':
+                    ont_data['estado'] = 'online'
+                elif value.lower() == 'dyinggasp':
+                    ont_data['estado'] = 'dying_gasp'
+                elif value.upper() == 'LOS':
+                    ont_data['estado'] = 'LOS'
+                else:
+                    ont_data['estado'] = 'offline'
+            elif key == 'Serial number':
+                ont_data['sn'] = value
+            elif key == 'Description':
+                ont_data['descripcion'] = value
+            elif key == 'ONU Distance':
+                ont_data['onu_distance'] = value
+                # Extraer valor numérico si tiene formato "3382m"
+                match = re.search(r'(\d+)', value)
+                if match:
+                    ont_data['distance'] = int(match.group(1))
+            elif key == 'Online Duration':
+                ont_data['online_duration'] = value
+        
+        return ont_data
+
+
+    def _parsear_power_zte(self, output: str, ont_data: dict):
+        """Parsea el output de 'show pon power attenuation'"""
+        lines = output.split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Línea up: OLT Rx
+            if line.startswith('up'):
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part.startswith('Rx:') or part == 'Rx':
+                        if part == 'Rx' and i + 1 < len(parts):
+                            olt_rx_str = parts[i + 1].replace(':', '').replace('(dbm)', '').strip()
+                        else:
+                            olt_rx_str = part.split(':')[1].replace('(dbm)', '').strip()
+                        ont_data['olt_rx'] = self._safe_float_parse(olt_rx_str)
+                        break
+            
+            # Línea down: ONT Rx
+            elif line.startswith('down'):
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part.startswith('Rx:') or part == 'Rx':
+                        if part == 'Rx' and i + 1 < len(parts):
+                            ont_rx_str = parts[i + 1].replace(':', '').replace('(dbm)', '').strip()
+                        else:
+                            ont_rx_str = part.split(':')[1].replace('(dbm)', '').strip()
+                        ont_data['ont_rx'] = self._safe_float_parse(ont_rx_str)
+                        break
+
+
+    def _safe_float_parse(self, value: str) -> float:
+        """Parsea un valor float de forma segura"""
+        try:
+            return float(value.replace('(dbm)', '').strip())
+        except (ValueError, AttributeError):
+            return None

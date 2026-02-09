@@ -241,6 +241,13 @@
                                     onclick="showOntDetails('{{ ont.id }}')">
                                     <i class="fas fa-eye"></i>
                                 </button>
+
+                                <!-- NUEVO: Botón de eliminar -->
+                                <button class="btn btn-outline-danger btn-sm" title="Eliminar ONT"
+                                    onclick="showDeleteModal('{{ ont.id }}', '{{ tarjeta }}', '{{ puerto }}', '{{ ont.descripcion or ONT + ont.id }}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+
                                 <button class="btn btn-outline-warning btn-sm" title="Reiniciar ONT"
                                     onclick="resetOnt('{{ ont.id }}')">
                                     <i class="fas fa-redo"></i>
@@ -261,7 +268,53 @@
     </div>
     {% endif %}
 </div>
-<!-- Modal para detalles de ONT -->
+<!-- Modal para eliminar de ONT -->
+<div class="modal fade" id="deleteOntModal" tabindex="-1" aria-labelledby="deleteOntModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteOntModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i> Confirmar Eliminación
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <strong>¡Advertencia!</strong> Esta acción no se puede deshacer.
+                </div>
+
+                <p class="mb-3">¿Está seguro de que desea eliminar esta ONT?</p>
+
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">ONT ID:</dt>
+                            <dd class="col-sm-8" id="delete_ont_id">-</dd>
+
+                            <dt class="col-sm-4">Board/Port:</dt>
+                            <dd class="col-sm-8">
+                                <span id="delete_board">-</span> / <span id="delete_port">-</span>
+                            </dd>
+
+                            <dt class="col-sm-4">Descripción:</dt>
+                            <dd class="col-sm-8" id="delete_descripcion">-</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteOnt()">
+                    <i class="fas fa-trash"></i> Eliminar ONT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Modal para detalles de ONT -->
 <div class="modal fade" id="ontDetailsModal" tabindex="-1" aria-labelledby="ontDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl">
@@ -297,6 +350,77 @@
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+    let deleteOntData = {
+        ontId: null,
+        board: null,
+        port: null,
+        descripcion: null
+    };
+
+    // Mostrar modal de eliminación
+    function showDeleteModal(ontId, board, port, descripcion) {
+        deleteOntData = { ontId, board, port, descripcion };
+
+        // Actualizar datos en el modal
+        document.getElementById('delete_ont_id').textContent = ontId;
+        document.getElementById('delete_board').textContent = board;
+        document.getElementById('delete_port').textContent = port;
+        document.getElementById('delete_descripcion').textContent = descripcion;
+
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteOntModal'));
+        modal.show();
+    }
+
+    // Confirmar eliminación
+    async function confirmDeleteOnt() {
+        const { ontId, board, port } = deleteOntData;
+        const btn = document.getElementById('confirmDeleteBtn');
+        const originalHtml = btn.innerHTML;
+
+        // Deshabilitar botón
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
+
+        try {
+            const response = await fetch('/api/delete_ont', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ont_id: ontId,
+                    board: board,
+                    port: port
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteOntModal'));
+                modal.hide();
+
+                // Mostrar mensaje de éxito
+                showToast('success', `ONT ${ontId} eliminada exitosamente`);
+
+                // Recargar página después de 2 segundos
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                throw new Error(result.error || 'Error al eliminar ONT');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('error', 'Error al eliminar ONT: ' + error.message);
+
+            // Restaurar botón
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
     // Form handling
     document.addEventListener("DOMContentLoaded", function () {
         const form = document.getElementById("consultaForm");
@@ -319,7 +443,9 @@
 
             // Deshabilitar botón para evitar doble submit
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
         });
 
         // Auto-dismiss toasts
@@ -461,13 +587,31 @@
 
         toastContainer.insertAdjacentHTML('beforeend', toastHTML);
         const toastElement = document.getElementById(toastId);
-        const toast = new bootstrap.Toast(toastElement, { delay: duration });
-        toast.show();
-
-        // Limpiar después de que se oculta
-        toastElement.addEventListener('hidden.bs.toast', () => {
-            toastElement.remove();
+        const toast = new bootstrap.Toast(toastElement, {
+            autohide: true,
+            delay: duration
         });
+
+        // Auto-destruir cuando se oculte
+        toastElement.addEventListener('hidden.bs.toast', function () {
+            toastElement.remove();
+
+            // Si no quedan toasts, eliminar el container
+            if (toastContainer.children.length === 0) {
+                toastContainer.remove();
+            }
+        });
+
+        toast.show();
+    }
+
+    function toggleWarning(checkbox) {
+        const warning = document.getElementById('warning-nombres');
+        if (checkbox.checked) {
+            warning.style.display = 'block';
+        } else {
+            warning.style.display = 'none';
+        }
     }
 
     function resetOnt(ontId) {

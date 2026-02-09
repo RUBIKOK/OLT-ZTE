@@ -503,8 +503,8 @@ def get_ont_info(tarjeta, puerto, ont_id):
         if not re.match(r'^(1[0-7]|[1-9])$', tarjeta):
             return jsonify({"error": "Tarjeta inválida. Debe ser entre 1-17"}), 400
         
-        if not re.match(r'^(1[0-5]|[0-9])$', puerto):
-            return jsonify({"error": "Puerto inválido. Debe ser entre 0-15"}), 400
+        if not re.match(r'^(1[0-6]|[0-9])$', puerto):
+            return jsonify({"error": "Puerto inválido. Debe ser entre 0-16"}), 400
         
         if not ont_id.isdigit():
             return jsonify({"error": "ID de ONT inválido. Debe ser numérico"}), 400
@@ -603,6 +603,77 @@ def barrido():
         puerto=puerto,
         habilitar_nombres=habilitar_nombres
     )
+
+@ont_bp.route("/api/delete_ont", methods=["POST"])
+def api_delete_ont():
+    '''API para eliminar una ONT'''
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        required = ['ont_id', 'board', 'port']
+        missing = [field for field in required if not data.get(field)]
+        
+        if missing:
+            return jsonify({
+                'status': 'error',
+                'error': f'Faltan campos requeridos: {", ".join(missing)}'
+            }), 400
+        
+        connection_service = get_connection_for_session()
+        ont_service = ONTService(connection_service)
+        
+        result = ont_service.eliminar_ont(
+            board=data['board'],
+            port=data['port'],
+            ont_id=data['ont_id']
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        session_id = get_session_id()
+        logger.error(f"Error en API delete_ont (sesión {session_id}): {e}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+
+@ont_bp.route("/search")
+def search_page():
+    """Página de búsqueda de ONT por SN"""
+    return render_template("search.html")
+
+
+@ont_bp.route("/api/search_ont", methods=["POST"])
+def api_search_ont():
+    """API para buscar una ONT por Serial Number en toda la OLT"""
+    try:
+        data = request.get_json()
+        sn = data.get('sn', '').strip().upper()
+        
+        if not sn or len(sn) < 8:
+            return jsonify({
+                'status': 'error',
+                'error': 'Serial Number inválido'
+            }), 400
+        
+        connection_service = get_connection_for_session()
+        ont_service = ONTService(connection_service)
+        
+        # Buscar ONT en toda la OLT
+        result = ont_service.buscar_ont_por_sn(sn)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        session_id = get_session_id()
+        logger.error(f"Error en API search_ont (sesión {session_id}): {e}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
+    
 # ============ CORRECCIÓN 12: Manejo de errores global mejorado ============
 @ont_bp.errorhandler(Exception)
 def handle_error(error):

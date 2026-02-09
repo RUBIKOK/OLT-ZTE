@@ -1,0 +1,435 @@
+{% extends "index.html" %}
+
+{% block title %}Búsqueda de ONT - OLT Monitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="fas fa-search"></i> Búsqueda de ONT por Serial Number</h2>
+            <p class="text-muted mb-0">Encuentra una ONT en toda la OLT usando su SN</p>
+        </div>
+    </div>
+
+    <!-- Formulario de búsqueda -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-barcode"></i> Buscar ONT</h5>
+        </div>
+        <div class="card-body">
+            <form id="searchForm" class="row g-3">
+                <div class="col-md-8">
+                    <label for="search_sn" class="form-label">
+                        <i class="fas fa-barcode"></i> Serial Number (SN)
+                    </label>
+                    <input 
+                        type="text" 
+                        class="form-control form-control-lg" 
+                        id="search_sn" 
+                        name="sn" 
+                        placeholder="Ej: HWTC00FFF039, VSOL00452E17"
+                        required
+                        pattern="[A-Za-z0-9]+"
+                        minlength="8"
+                        maxlength="16"
+                    >
+                    <small class="text-muted">
+                        Ingrese el SN completo (8-16 caracteres alfanuméricos)
+                    </small>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary btn-lg w-100" id="searchBtn">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+
+            <div class="alert alert-info mt-3 mb-0">
+                <i class="fas fa-info-circle"></i>
+                <small>
+                    <strong>Nota:</strong> La búsqueda puede tardar unos segundos ya que escanea toda la OLT.
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div id="searchResults" style="display: none;">
+        <!-- Resultado encontrado -->
+        <div id="ontFound" style="display: none;">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-check-circle"></i> ONT Encontrada
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Información General</h6>
+                            <dl class="row">
+                                <dt class="col-sm-5">Serial Number:</dt>
+                                <dd class="col-sm-7"><code id="result_sn">-</code></dd>
+                                
+                                <dt class="col-sm-5">Board/Slot:</dt>
+                                <dd class="col-sm-7"><strong id="result_board">-</strong></dd>
+                                
+                                <dt class="col-sm-5">Puerto:</dt>
+                                <dd class="col-sm-7"><strong id="result_port">-</strong></dd>
+                                
+                                <dt class="col-sm-5">ONT ID:</dt>
+                                <dd class="col-sm-7">
+                                    <span class="badge bg-secondary" id="result_ont_id">-</span>
+                                </dd>
+                                
+                                <dt class="col-sm-5">Estado:</dt>
+                                <dd class="col-sm-7" id="result_estado">-</dd>
+                                
+                                <dt class="col-sm-5">Tipo:</dt>
+                                <dd class="col-sm-7" id="result_type">-</dd>
+                            </dl>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-3">Datos Ópticos</h6>
+                            <dl class="row">
+                                <dt class="col-sm-5">ONT RX:</dt>
+                                <dd class="col-sm-7" id="result_ont_rx">-</dd>
+                                
+                                <dt class="col-sm-5">OLT RX:</dt>
+                                <dd class="col-sm-7" id="result_olt_rx">-</dd>
+                                
+                                <dt class="col-sm-5">Temperatura:</dt>
+                                <dd class="col-sm-7" id="result_temperature">-</dd>
+                                
+                                <dt class="col-sm-5">Distancia:</dt>
+                                <dd class="col-sm-7" id="result_distance">-</dd>
+                                
+                                <dt class="col-sm-5">Descripción:</dt>
+                                <dd class="col-sm-7" id="result_descripcion">-</dd>
+                            </dl>
+                        </div>
+                    </div>
+                    
+                    <!-- Acciones -->
+                    <div class="mt-4 pt-3 border-top">
+                        <h6 class="text-muted mb-3">Acciones Rápidas</h6>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" id="btnVerDetalles">
+                                <i class="fas fa-eye"></i> Ver Detalles Completos
+                            </button>
+                            <button class="btn btn-info" id="btnVerPuerto">
+                                <i class="fas fa-ethernet"></i> Ir al Puerto
+                            </button>
+                            <button class="btn btn-warning" id="btnReiniciar">
+                                <i class="fas fa-redo"></i> Reiniciar
+                            </button>
+                            <button class="btn btn-danger" id="btnEliminar">
+                                <i class="fas fa-trash"></i> Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultado NO encontrado -->
+        <div id="ontNotFound" style="display: none;">
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">ONT no encontrada</h4>
+                    <p class="text-muted mb-4">
+                        No se encontró ninguna ONT con el Serial Number: <code id="searched_sn"></code>
+                    </p>
+                    <div class="alert alert-info d-inline-block">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Posibles razones:</strong>
+                        <ul class="text-start mb-0 mt-2">
+                            <li>La ONT no está autorizada en la OLT</li>
+                            <li>El SN fue escrito incorrectamente</li>
+                            <li>La ONT está en modo autofind (sin autorizar)</li>
+                        </ul>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary" href="{{ url_for('ont.home') }}">
+                            <i class="fas fa-search"></i> Ver ONTs en Autofind
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historial de búsquedas -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="fas fa-history"></i> Búsquedas Recientes
+                <button class="btn btn-sm btn-outline-danger float-end" onclick="clearSearchHistory()">
+                    <i class="fas fa-trash"></i> Limpiar
+                </button>
+            </h6>
+        </div>
+        <div class="card-body">
+            <div id="searchHistory">
+                <p class="text-muted mb-0">No hay búsquedas recientes</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="text-center">
+        <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;"></div>
+        <h4 class="text-primary mb-2">Buscando ONT...</h4>
+        <p class="text-muted">Escaneando toda la OLT, por favor espere...</p>
+        <div class="progress mb-2" style="height: 6px; width: 300px; margin: 0 auto;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                 style="width: 100%"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let searchHistory = JSON.parse(localStorage.getItem('ont_search_history')) || [];
+let currentResult = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSearchHistory();
+    
+    // Form submit
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        searchOnt();
+    });
+});
+
+async function searchOnt() {
+    const sn = document.getElementById('search_sn').value.trim().toUpperCase();
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const searchBtn = document.getElementById('searchBtn');
+    const originalHtml = searchBtn.innerHTML;
+    
+    if (!sn || sn.length < 8) {
+        showToast('warning', 'Por favor ingrese un SN válido (mínimo 8 caracteres)');
+        return;
+    }
+    
+    // Mostrar loading
+    loadingOverlay.style.display = 'flex';
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+    
+    try {
+        const response = await fetch('/api/search_ont', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sn: sn })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success' && result.found) {
+            currentResult = result.data;
+            showOntFound(result.data);
+            addToSearchHistory(sn, true);
+        } else {
+            showOntNotFound(sn);
+            addToSearchHistory(sn, false);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showToast('error', 'Error al buscar ONT: ' + error.message);
+    } finally {
+        loadingOverlay.style.display = 'none';
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = originalHtml;
+    }
+}
+
+function showOntFound(data) {
+    // Ocultar mensaje de no encontrado
+    document.getElementById('ontNotFound').style.display = 'none';
+    
+    // Mostrar resultados
+    document.getElementById('searchResults').style.display = 'block';
+    document.getElementById('ontFound').style.display = 'block';
+    
+    // Llenar datos
+    document.getElementById('result_sn').textContent = data.sn;
+    document.getElementById('result_board').textContent = data.board;
+    document.getElementById('result_port').textContent = data.port;
+    document.getElementById('result_ont_id').textContent = data.ont_id;
+    document.getElementById('result_type').textContent = data.type || '-';
+    
+    // Estado con badge
+    const estadoBadge = getEstadoBadge(data.estado);
+    document.getElementById('result_estado').innerHTML = estadoBadge;
+    
+    // Datos ópticos
+    document.getElementById('result_ont_rx').innerHTML = formatRx(data.ont_rx);
+    document.getElementById('result_olt_rx').innerHTML = formatRx(data.olt_rx);
+    document.getElementById('result_temperature').textContent = data.temperature ? data.temperature + '°C' : '-';
+    document.getElementById('result_distance').textContent = data.distance ? data.distance + ' m' : '-';
+    document.getElementById('result_descripcion').textContent = data.name || '-';
+    
+    // Configurar botones de acción
+    setupActionButtons(data);
+    
+    // Scroll a resultados
+    document.getElementById('searchResults').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showOntNotFound(sn) {
+    document.getElementById('ontFound').style.display = 'none';
+    document.getElementById('searchResults').style.display = 'block';
+    document.getElementById('ontNotFound').style.display = 'block';
+    document.getElementById('searched_sn').textContent = sn;
+    
+    document.getElementById('searchResults').scrollIntoView({ behavior: 'smooth' });
+}
+
+function getEstadoBadge(estado) {
+    const badges = {
+        'online': '<span class="badge bg-success"><i class="fas fa-circle"></i> Online</span>',
+        'offline': '<span class="badge bg-danger"><i class="fas fa-circle"></i> Offline</span>',
+        'disabled': '<span class="badge bg-secondary"><i class="fas fa-ban"></i> Disabled</span>',
+        'dying_gasp': '<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle"></i> Dying Gasp</span>',
+        'LOS': '<span class="badge bg-danger"><i class="fas fa-signal"></i> LOS</span>'
+    };
+    return badges[estado] || '<span class="badge bg-secondary">Unknown</span>';
+}
+
+function formatRx(rx) {
+    if (!rx) return '-';
+    const value = parseFloat(rx);
+    let color = 'text-success';
+    if (value < -28) color = 'text-danger fw-bold';
+    else if (value < -25) color = 'text-warning fw-bold';
+    return `<span class="${color}">${rx} dBm</span>`;
+}
+
+function setupActionButtons(data) {
+    document.getElementById('btnVerDetalles').onclick = () => {
+        window.location.href = `/api/ont_info/${data.board}/${data.port}/${data.ont_id}`;
+    };
+    
+    document.getElementById('btnVerPuerto').onclick = () => {
+        window.location.href = `/ont?tarjeta=${data.board}&puerto=${data.port}`;
+    };
+    
+    document.getElementById('btnReiniciar').onclick = () => {
+        if (confirm(`¿Reiniciar ONT ${data.ont_id}?`)) {
+            // Implementar reinicio
+            showToast('info', 'Funcionalidad de reinicio en desarrollo');
+        }
+    };
+    
+    document.getElementById('btnEliminar').onclick = () => {
+        showDeleteModal(data.ont_id, data.board, data.port, data.descripcion);
+    };
+}
+
+function addToSearchHistory(sn, found) {
+    const entry = {
+        sn: sn,
+        found: found,
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleString('es-ES')
+    };
+    
+    searchHistory.unshift(entry);
+    searchHistory = searchHistory.slice(0, 10); // Mantener solo últimas 10
+    
+    localStorage.setItem('ont_search_history', JSON.stringify(searchHistory));
+    loadSearchHistory();
+}
+
+function loadSearchHistory() {
+    const container = document.getElementById('searchHistory');
+    
+    if (searchHistory.length === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">No hay búsquedas recientes</p>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    searchHistory.forEach((entry, idx) => {
+        const icon = entry.found ? 
+            '<i class="fas fa-check-circle text-success"></i>' : 
+            '<i class="fas fa-times-circle text-danger"></i>';
+        
+        html += `
+            <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" 
+                    onclick="document.getElementById('search_sn').value='${entry.sn}'; searchOnt();">
+                <div>
+                    ${icon}
+                    <code class="ms-2">${entry.sn}</code>
+                    <small class="text-muted ms-2">${entry.date}</small>
+                </div>
+                <span class="badge ${entry.found ? 'bg-success' : 'bg-danger'}">
+                    ${entry.found ? 'Encontrada' : 'No encontrada'}
+                </span>
+            </button>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+function clearSearchHistory() {
+    if (confirm('¿Limpiar historial de búsquedas?')) {
+        searchHistory = [];
+        localStorage.removeItem('ont_search_history');
+        loadSearchHistory();
+        showToast('success', 'Historial limpiado');
+    }
+}
+
+function showToast(type, message) {
+    // Reutilizar función de toast existente
+    const toastContainer = document.querySelector('.toast-container') || createToastContainer();
+    const toastId = 'toast-' + Date.now();
+    const iconClass = {
+        'error': 'fa-exclamation-triangle text-danger',
+        'success': 'fa-check-circle text-success',
+        'warning': 'fa-exclamation-circle text-warning',
+        'info': 'fa-info-circle text-info'
+    }[type];
+    
+    const toastHTML = `
+        <div class="toast show" id="${toastId}">
+            <div class="toast-header">
+                <i class="fas ${iconClass} me-2"></i>
+                <strong class="me-auto">${type.charAt(0).toUpperCase() + type.slice(1)}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">${message}</div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    
+    setTimeout(() => {
+        toast.hide();
+        setTimeout(() => toastElement.remove(), 500);
+    }, 5000);
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '11000';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+{% endblock %}

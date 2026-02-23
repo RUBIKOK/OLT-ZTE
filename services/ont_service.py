@@ -4,6 +4,7 @@ import datetime
 from typing import List, Dict
 import logging
 import re
+from .ont_db import ONTDatabase
 import time
 from models.ont_model import ONT, ONTCollection
 
@@ -1529,6 +1530,8 @@ class ONTService:
                 
                 logger.info(f"ONT {sn_clean} autorizada exitosamente en {board}/{port}:{onu_id}")
                 
+                ONTDatabase.guardar_ont(board, port, onu_id, sn, name or None)
+
                 return {
                     'status': 'success',
                     'message': f'ONT autorizada exitosamente en posición {onu_id}',
@@ -1593,6 +1596,8 @@ class ONTService:
                 
                 logger.info(f"ONT {ont_id} eliminada exitosamente de {board}/{port}")
                 
+                ONTDatabase.eliminar_ont(board, port, ont_id)
+                
                 return {
                     'status': 'success',
                     'message': f'ONT {ont_id} eliminada exitosamente',
@@ -1621,10 +1626,19 @@ class ONTService:
             
             # Limpiar SN
             sn_clean = re.sub(r'[^A-Za-z0-9]', '', sn.upper())
+            #============================================
+            ont = ONTDatabase.obtener_ont_por_sn(sn_clean)
+            if ont:
+                ont_output = ont.get('sn', 'N/A')
+                print(f"SN COMPLETO: {ont.get('sn', 'N/A')}")
+            else:
+                print("No encontrada")
+        #============================================
+            
             
             # Ejecutar comando directo de búsqueda
             output = self.session_connection.execute_command(
-                f"show gpon onu by sn {sn_clean}",
+                f"show gpon onu by sn {ont_output}",
                 delay_factor=2,
                 timeout=15
             )
@@ -1845,3 +1859,226 @@ class ONTService:
             return float(value.replace('(dbm)', '').strip())
         except (ValueError, AttributeError):
             return None
+    
+    def consultar_y_guardar_todas_onts(self) -> Dict:
+        """
+        Ejecuta 'show run' en la OLT, parsea toda la configuración
+        y guarda todas las ONTs en la base de datos SQLite
+        
+        Returns:
+            Dict: Estadísticas de la operación
+        """
+        try:
+            logger.info("Iniciando consulta completa de configuración (show run)")
+            
+            # Ejecutar comando show run
+            output = self.session_connection.execute_global_command(
+                "show run",
+                delay_factor=3,
+                timeout=60  # Timeout largo porque puede ser mucha información
+            )
+            
+            logger.info(f"Show run ejecutado, tamaño del output: {len(output)} caracteres")
+            
+            # Parsear todas las ONTs del output
+            onts_encontradas = self._parsear_show_run_completo(output)
+            
+            # Guardar en base de datos
+            if onts_encontradas:
+                ONTDatabase.guardar_onts_batch(onts_encontradas)
+                
+            logger.info(f"Proceso completado: {len(onts_encontradas)} ONTs guardadas")
+            
+            # Calcular estadísticas por tarjeta/puerto
+            estadisticas = self._calcular_estadisticas_por_puerto(onts_encontradas)
+            
+            return {
+                'status': 'success',
+                'total_onts': len(onts_encontradas),
+                'onts': onts_encontradas,
+                'estadisticas_por_puerto': estadisticas
+            }
+            
+        except Exception as e:
+            logger.error(f"Error en consulta y guardado de ONTs: {e}")
+            raise
+    
+    def _parsear_show_run_completo(self, output: str) -> List[Dict]:
+        """
+        Parsea el output completo de 'show run' para extraer todas las ONTs
+        
+        Formato esperado:
+        - interface gpon-olt_1/1/5
+            onu 1 type ... sn VSOL007A55EB
+        - interface gpon-onu_1/1/6:2
+            name TACAS BEJAR ELIZABETH
+        """
+        onts = []
+        lineas = output.split('\n')
+        
+        i = 0
+        total_lineas = len(lineas)
+        
+        while i < total_lineas:
+            linea = lineas[i].strip()
+            
+            # Buscar interfaces gpon-olt
+            if linea.startswith('interface gpon-olt_'):
+                # Extraer tarjeta y puerto
+                match_olt = re.match(r'interface gpon-olt_(\d+)/(\d+)/(\d+)', linea)
+                if match_olt:
+                    frame = match_olt.group(1)  # Normalmente 1
+                    tarjeta = match_olt.group(2)
+                    puerto = match_olt.group(3)
+                    
+                    logger.debug(f"Procesando puerto: {tarjeta}/{puerto}")
+                    
+                    # Avanzar al siguiente bloque de configuración de esta interfaz
+                    i += 1
+                    while i < total_lineas:
+                        linea_interna = lineas[i].strip()
+                        
+                        # Fin de la interfaz
+                        if linea_interna == '!' or linea_interna.startswith('interface ') or i >= total_lineas - 1:
+                            break
+                        
+                        # Buscar líneas "onu X type ... sn ..."
+                        if linea_interna.startswith('onu ') and ' sn ' in linea_interna:
+                            ont_data = self._parsear_linea_onu_olt(linea_interna, tarjeta, puerto)
+                            if ont_data:
+                                # Buscar el name correspondiente en la interfaz gpon-onu
+                                name = self._buscar_name_para_ont(lineas, i, tarjeta, puerto, ont_data['onu_id'])
+                                if name:
+                                    ont_data['name'] = name
+                                
+                                onts.append(ont_data)
+                                logger.debug(f"ONT encontrada: {ont_data}")
+                        
+                        i += 1
+                    continue  # Ya procesamos este bloque
+            
+            i += 1
+        
+        logger.info(f"Parseo completado: {len(onts)} ONTs encontradas en show run")
+        return onts
+    
+    def _parsear_linea_onu_olt(self, linea: str, tarjeta: str, puerto: str) -> Dict:
+        """
+        Parsea una línea del tipo:
+        "onu 1 type V-SOL-V2801D-1GT1 sn VSOL007A55EB"
+        
+        Returns:
+            Dict con tarjeta, puerto, onu_id, sn
+        """
+        try:
+            # Extraer ID de ONU
+            parts = linea.split()
+            if len(parts) < 2:
+                return None
+            
+            onu_id = None
+            sn = None
+            
+            for i, part in enumerate(parts):
+                if i == 1 and part.isdigit():
+                    onu_id = part
+                elif part == 'sn' and i + 1 < len(parts):
+                    sn = parts[i + 1].strip()
+                    # Limpiar SN (quitar caracteres extraños)
+                    sn = re.sub(r'[^A-Za-z0-9]', '', sn)
+            
+            if onu_id and sn:
+                return {
+                    'tarjeta': tarjeta,
+                    'puerto': puerto,
+                    'onu_id': onu_id,
+                    'sn': sn,
+                    'name': None  # Se llenará después
+                }
+            
+        except Exception as e:
+            logger.warning(f"Error parseando línea ONU: {linea} - {e}")
+        
+        return None
+    
+    def _buscar_name_para_ont(self, lineas: List[str], posicion_actual: int, 
+                             tarjeta: str, puerto: str, onu_id: str) -> str:
+        """
+        Busca en el resto del archivo la interfaz gpon-onu correspondiente
+        para extraer el nombre
+        """
+        interface_buscada = f"interface gpon-onu_1/{tarjeta}/{puerto}:{onu_id}"
+        
+        # Buscar hacia adelante desde la posición actual
+        for j in range(posicion_actual, min(posicion_actual + 50, len(lineas))):
+            linea = lineas[j].strip()
+            
+            if linea.startswith(interface_buscada):
+                # Encontramos la interfaz, buscar la línea 'name'
+                for k in range(j + 1, min(j + 20, len(lineas))):
+                    linea_name = lineas[k].strip()
+                    if linea_name.startswith('name '):
+                        # Extraer el nombre completo
+                        name = linea_name[5:].strip()  # Remover 'name '
+                        # Quitar comillas si existen
+                        name = name.strip('"\'')
+                        return name
+                    elif linea_name == '!' or linea_name.startswith('interface '):
+                        break
+                break
+        
+        return None
+    
+    def _calcular_estadisticas_por_puerto(self, onts: List[Dict]) -> Dict:
+        """Calcula estadísticas agrupadas por tarjeta/puerto"""
+        estadisticas = {}
+        
+        for ont in onts:
+            key = f"{ont['tarjeta']}/{ont['puerto']}"
+            
+            if key not in estadisticas:
+                estadisticas[key] = {
+                    'tarjeta': ont['tarjeta'],
+                    'puerto': ont['puerto'],
+                    'total_onts': 0,
+                    'onts_con_name': 0,
+                    'onts_sin_name': 0
+                }
+            
+            estadisticas[key]['total_onts'] += 1
+            if ont.get('name'):
+                estadisticas[key]['onts_con_name'] += 1
+            else:
+                estadisticas[key]['onts_sin_name'] += 1
+        
+        return estadisticas
+    
+    # Funciones CRUD para la base de datos
+    
+    def obtener_ont_db_por_sn(self, sn: str) -> Dict:
+        """Obtiene una ONT de la base de datos por SN"""
+        return ONTDatabase.obtener_ont_por_sn(sn)
+    
+    def obtener_ont_db_por_ubicacion(self, tarjeta: str, puerto: str, onu_id: str) -> Dict:
+        """Obtiene una ONT de la base de datos por ubicación"""
+        return ONTDatabase.obtener_ont_por_ubicacion(tarjeta, puerto, onu_id)
+    
+    def obtener_todas_onts_db(self) -> List[Dict]:
+        """Obtiene todas las ONTs de la base de datos"""
+        return ONTDatabase.obtener_todas_onts()
+    
+    def obtener_onts_por_puerto_db(self, tarjeta: str, puerto: str) -> List[Dict]:
+        """Obtiene ONTs de un puerto específico de la base de datos"""
+        return ONTDatabase.obtener_onts_por_puerto(tarjeta, puerto)
+    
+    def eliminar_ont_db(self, tarjeta: str, puerto: str, onu_id: str):
+        """Elimina una ONT de la base de datos"""
+        return ONTDatabase.eliminar_ont(tarjeta, puerto, onu_id)
+    
+    def actualizar_name_db(self, tarjeta: str, puerto: str, onu_id: str, name: str):
+        """Actualiza el nombre de una ONT en la base de datos"""
+        return ONTDatabase.actualizar_name(tarjeta, puerto, onu_id, name)
+    
+    def limpiar_base_datos(self):
+        """LIMPIA TODA LA BASE DE DATOS - USAR CON CUIDADO"""
+        return ONTDatabase.limpiar_tabla()

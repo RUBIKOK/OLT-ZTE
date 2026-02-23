@@ -31,11 +31,11 @@
                         placeholder="Ej: HWTC00FFF039, VSOL00452E17"
                         required
                         pattern="[A-Za-z0-9]+"
-                        minlength="8"
+                        minlength="4"
                         maxlength="16"
                     >
                     <small class="text-muted">
-                        Ingrese el SN completo (8-16 caracteres alfanuméricos)
+                        Ingrese el SN completo (4-16 caracteres alfanuméricos)
                     </small>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
@@ -214,7 +214,7 @@ async function searchOnt() {
     const searchBtn = document.getElementById('searchBtn');
     const originalHtml = searchBtn.innerHTML;
     
-    if (!sn || sn.length < 8) {
+    if (!sn || sn.length < 4) {
         showToast('warning', 'Por favor ingrese un SN válido (mínimo 8 caracteres)');
         return;
     }

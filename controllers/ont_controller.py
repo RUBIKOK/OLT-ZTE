@@ -652,7 +652,7 @@ def api_search_ont():
         data = request.get_json()
         sn = data.get('sn', '').strip().upper()
         
-        if not sn or len(sn) < 8:
+        if not sn or len(sn) < 4:
             return jsonify({
                 'status': 'error',
                 'error': 'Serial Number inválido'
@@ -662,6 +662,7 @@ def api_search_ont():
         ont_service = ONTService(connection_service)
         
         # Buscar ONT en toda la OLT
+
         result = ont_service.buscar_ont_por_sn(sn)
         
         return jsonify(result)
